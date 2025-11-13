@@ -10,3 +10,7 @@ type RequestLoginUserDTO struct {
 	Email    string "json:email"
 	Password string "json:password"
 }
+
+type ResponseLoginDTO struct {
+	AccessToken string "json:access_token"
+}

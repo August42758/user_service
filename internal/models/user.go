@@ -17,6 +17,7 @@ type User struct {
 type IUserModel interface {
 	Insert(name string, email string, password string) error
 	Select(email string) (int, string, error)
+	SelectById(id int) (string, error)
 }
 
 type UserModel struct {
@@ -52,4 +53,18 @@ func (um *UserModel) Select(email string) (int, string, error) {
 	}
 
 	return id, password, nil
+}
+
+func (um *UserModel) SelectById(id int) (string, error) {
+	stmt := "SELECT  name FROM user_entity WHERE id = $1"
+
+	var name string
+	if err := um.Db.QueryRow(stmt, id).Scan(&name); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrUserDoesntExist
+		}
+		return "", err
+	}
+
+	return name, nil
 }

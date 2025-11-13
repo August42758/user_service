@@ -94,23 +94,70 @@ func (a *UserApp) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//генерируем токен
-	token, err := auth.CreateToken(auth.ExpirationTime, strconv.Itoa(id), auth.SecretKey)
+	//создаем claims юзера
+	claims, err := auth.NewRegisteredClaims(strconv.Itoa(id), auth.ExpirationTime)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	// http.SetCookie(w, &http.Cookie{
-	// 	Name: "access_token",
-	// 	Value: token,
+	//генерируем токен
+	token, err := a.JWTMaker.CreateToken(claims, auth.SecretKey)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 
-	// })
+	//формируем дто
+	response := dto.ResponseLoginDTO{
+		AccessToken: token,
+	}
 
-	w.Header().Set("access_token", token)
-	w.Write([]byte("Вы успешно зашли"))
+	//сериализация
+	b, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(b)
 }
 
 func (a *UserApp) HandlePing(w http.ResponseWriter, r *http.Request) {
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
 
+	//валидируем токен
+	claims, err := a.JWTMaker.ParseToken(auth.SecretKey, token)
+	if err != nil {
+		if errors.Is(err, auth.ErrInvalidToken) {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	//получаем id из данных токена
+	id, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	//извлекаем пользователя из БД
+	username, err := a.UserModel.SelectById(id)
+	if err != nil {
+		if errors.Is(err, models.ErrUserDoesntExist) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write([]byte("Привет " + username))
 }

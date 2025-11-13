@@ -1,32 +1,24 @@
 package auth
 
 import (
-	"time"
+	"errors"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 var SecretKey = "gferfeferferfre"
-var ExpirationTime = time.Now().Add(24 * time.Hour)
 
-type CustomClaims struct {
-	UserID string
-	jwt.RegisteredClaims
+type IJWTMaker interface {
+	CreateToken(claims jwt.Claims, secretKey string) (string, error)
+	ParseToken(secretKey, tokenString string) (*jwt.RegisteredClaims, error)
 }
 
-func NewCustomClaims(userId string, experationTime time.Time) *CustomClaims {
-	return &CustomClaims{
-		UserID: userId,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(experationTime),
-		},
-	}
+type JWTMaker struct {
+	SecretKey string
 }
 
-func CreateToken(experationTime time.Time, userId, secretKey string) (string, error) {
-	customClaims := NewCustomClaims(userId, experationTime)
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, customClaims)
+func (j *JWTMaker) CreateToken(claims jwt.Claims, secretKey string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
@@ -36,22 +28,27 @@ func CreateToken(experationTime time.Time, userId, secretKey string) (string, er
 	return tokenString, nil
 }
 
-func ValidateToken(tokenString, secretKey string) (*CustomClaims, error) {
-	customClaims := &CustomClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, customClaims, func(token *jwt.Token) (any, error) {
+func (j *JWTMaker) ParseToken(secretKey, tokenString string) (*jwt.RegisteredClaims, error) {
+	parsedToken, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrInvalidToken
 		}
-
 		return []byte(secretKey), nil
 	})
+
 	if err != nil {
+		//проверяем на ошибку валидности токена(exp, sub и тд)
+		if errors.Is(err, jwt.ErrTokenInvalidClaims) {
+			return nil, ErrInvalidToken
+		}
+		//иначе что-то с серверной стороны
 		return nil, err
 	}
 
-	if !token.Valid {
+	claims, ok := parsedToken.Claims.(*jwt.RegisteredClaims)
+	if !ok {
 		return nil, ErrInvalidToken
 	}
 
-	return customClaims, nil
+	return claims, nil
 }

@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"userservice/internal/auth"
 	"userservice/internal/database"
 	"userservice/internal/models"
 	"userservice/internal/transport/rest"
@@ -22,9 +23,14 @@ func main() {
 
 	validator := &validator.Validator{}
 
+	JWTMaker := &auth.JWTMaker{
+		SecretKey: auth.SecretKey,
+	}
+
 	app := rest.UserApp{
 		Validator: validator,
 		UserModel: userModel,
+		JWTMaker:  JWTMaker,
 	}
 
 	if err := http.ListenAndServe(":8000", app.GetRoutes()); err != nil {

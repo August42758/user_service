@@ -9,7 +9,7 @@ func (a *UserApp) GetRoutes() *http.ServeMux {
 	mux.HandleFunc("/user/login", a.HandleLogin)
 	// mux.HandleFunc("/user/logout")
 
-	// mux.HandleFunc("/user/ping")
+	mux.HandleFunc("/user/ping", a.HandlePing)
 
 	return mux
 }
